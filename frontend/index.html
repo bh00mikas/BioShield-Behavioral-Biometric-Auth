@@ -1,0 +1,70 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Invisible Identity</title>
+  <style>
+    body { font-family: sans-serif; }
+    #status { margin-top: 20px; font-weight: bold; }
+  </style>
+</head>
+<body>
+  <h1>Invisible Identity: Mouse Biometrics</h1>
+  <p>Move your mouse for 10 seconds. We'll predict your identity.</p>
+  <button onclick="startCapture()">Start Tracking</button>
+  <div id="status"></div>
+
+  <script>
+    let mouseData = [];
+    let prevTime = null;
+    let velocities = [], accelerations = [];
+
+    function startCapture() {
+      mouseData = [];
+      velocities = [];
+      accelerations = [];
+      prevTime = performance.now();
+      document.getElementById("status").textContent = "Tracking mouse...";
+
+      document.addEventListener('mousemove', record);
+      setTimeout(() => {
+        document.removeEventListener('mousemove', record);
+        sendData();
+      }, 10000);
+    }
+
+    function record(e) {
+      const time = performance.now();
+      if (mouseData.length > 0) {
+        const last = mouseData[mouseData.length - 1];
+        const dt = (time - prevTime) / 1000;
+        const dx = e.clientX - last.x;
+        const dy = e.clientY - last.y;
+        const velocity = Math.sqrt(dx * dx + dy * dy) / dt;
+        const accel = velocities.length > 0 ? (velocity - velocities[velocities.length - 1]) / dt : 0;
+        velocities.push(velocity);
+        accelerations.push(accel);
+      }
+      mouseData.push({ x: e.clientX, y: e.clientY, t: time });
+      prevTime = time;
+    }
+
+    function sendData() {
+      fetch("http://127.0.0.1:5000/predict", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ velocity: velocities, acceleration: accelerations })
+      })
+      .then(res => res.json())
+      .then(data => {
+        document.getElementById("status").textContent = "Predicted user: " + data.predicted_user;
+      })
+      .catch(err => {
+        console.error(err);
+        document.getElementById("status").textContent = "Error: " + err.message;
+      });
+    }
+  </script>
+</body>
+</html>
